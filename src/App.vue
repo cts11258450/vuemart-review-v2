@@ -1,6 +1,9 @@
 <script setup>
 import { ref } from "vue"
 
+import ProductCard from "./components/ProductCard.vue"
+import { mockProducts } from "./data/mockProducts.js"
+
 const shopName = "VueMart"
 
 const welcomeMessage = ref(
@@ -9,6 +12,10 @@ const welcomeMessage = ref(
 
 const handleStart = () => {
   welcomeMessage.value = "準備完成！接下來開始建立商品功能。"
+}
+
+const handleAddToCart = (product)=>{
+  console.log(product.name)
 }
 </script>
 
@@ -31,6 +38,32 @@ const handleStart = () => {
         開始學習
       </button>
     </section>
+
+    <section
+      class="products-section"
+      aria-labelledby="products-title"
+    >
+      <header class="section-heading">
+        <p class="section-label">精選商品</p>
+
+        <h2 id="products-title">
+          找到適合你的桌面裝備
+        </h2>
+
+        <p class="product-summary">
+          目前共有 {{ mockProducts.length }} 項商品
+        </p>
+      </header>
+
+      <ul class="product-list">
+        <ProductCard
+          v-for="product in mockProducts"
+          :key="product.id"
+          :product="product"
+          @add-to-cart="handleAddToCart"
+        />
+      </ul>
+    </section>
   </main>
 </template>
 
@@ -38,9 +71,10 @@ const handleStart = () => {
 .home-page {
   display: flex;
   min-height: 100vh;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 32px 20px;
+  gap: 64px;
+  padding: 72px 20px;
   background:
     radial-gradient(
       circle at top left,
@@ -61,7 +95,8 @@ const handleStart = () => {
   box-shadow: 0 24px 60px rgb(15 23 42 / 12%);
 }
 
-.eyebrow {
+.eyebrow,
+.section-label {
   margin: 0 0 12px;
   color: #0f766e;
   font-size: 0.95rem;
@@ -109,7 +144,44 @@ h1 {
   outline-offset: 4px;
 }
 
+.products-section {
+  width: 100%;
+  max-width: 960px;
+}
+
+.section-heading {
+  text-align: center;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+  line-height: 1.2;
+}
+
+.product-summary {
+  margin: 16px 0 0;
+  color: #475569;
+  font-size: 1rem;
+}
+
+.product-list {
+  display: grid;
+  grid-template-columns:
+    repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+  margin: 32px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
 @media (max-width: 600px) {
+  .home-page {
+    gap: 48px;
+    padding: 48px 16px;
+  }
+
   .hero-section {
     padding: 48px 24px;
   }
