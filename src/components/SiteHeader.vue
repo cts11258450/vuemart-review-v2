@@ -1,5 +1,9 @@
 <script setup>
 import { RouterLink } from "vue-router"
+
+import { useCartStore } from "../stores/cart.js"
+
+const cartStore = useCartStore()
 </script>
 
 <template>
@@ -26,8 +30,17 @@ import { RouterLink } from "vue-router"
         <RouterLink
           class="nav-link"
           :to="{ name: 'cart' }"
+          :aria-label="`購物車，共 ${cartStore.totalQuantity} 件商品`"
         >
-          購物車
+          <span>購物車</span>
+
+          <span
+            v-if="cartStore.totalQuantity > 0"
+            class="cart-count"
+            aria-hidden="true"
+          >
+            {{ cartStore.totalQuantity }}
+          </span>
         </RouterLink>
       </nav>
     </div>
@@ -69,6 +82,9 @@ import { RouterLink } from "vue-router"
 }
 
 .nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 10px 14px;
   color: #334155;
   font-weight: 700;
@@ -89,6 +105,25 @@ import { RouterLink } from "vue-router"
   background-color: #0f766e;
 }
 
+.cart-count {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  place-items: center;
+  color: #0f766e;
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1;
+  background-color: #ccfbf1;
+  border-radius: 999px;
+}
+
+.nav-link.router-link-active .cart-count {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+
 .nav-link:focus-visible,
 .brand:focus-visible {
   outline: 3px solid #5eead4;
@@ -106,8 +141,15 @@ import { RouterLink } from "vue-router"
   }
 
   .nav-link {
+    gap: 6px;
     padding: 8px 10px;
     font-size: 0.9rem;
+  }
+
+  .cart-count {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
   }
 }
 </style>

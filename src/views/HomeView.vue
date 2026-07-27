@@ -1,10 +1,17 @@
 <script setup>
-import { ref } from "vue"
 
-import ProductCard from "../components/ProductCard.vue"
+import { ref } from "vue"
+import { useCartStore } from "../stores/cart.js";
 import { useProductStore } from "../stores/product.js"
 
+//add utils
+import { handleShowToast } from "../utils/toastHelper.js";
+
+//add view/.vue
+import ProductCard from "../components/ProductCard.vue"
+
 const productStore = useProductStore();
+const cartStore = useCartStore();
 
 const shopName = "VueMart"
 
@@ -17,7 +24,8 @@ const handleStart = () => {
 }
 
 const handleAddToCart = (product)=>{
-  console.log(product.name)
+  const result = cartStore.addToCart(product);
+  handleShowToast(result);
 }
 </script>
 
@@ -53,7 +61,7 @@ const handleAddToCart = (product)=>{
         </h2>
 
         <p class="product-summary">
-          目前共有 {{ productStore.products.length }} 項商品
+          目前共有 {{ productStore.productCount }} 項商品
         </p>
       </header>
 
