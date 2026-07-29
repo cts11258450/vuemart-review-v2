@@ -1,12 +1,13 @@
 <script setup>
-import { RouterLink } from "vue-router"
+import { RouterLink, useRouter } from "vue-router"
 
 import { useCartStore } from "../stores/cart.js"
 
 import { formatPrice } from "../utils/formatPrice.js"
 import { handleShowToast } from "../utils/toastHelper.js"
 
-const cartStore = useCartStore()
+const cartStore = useCartStore();
+const router = useRouter();
 
 const handleUpdateQty = (id, change) => {
   const result = cartStore.updateCartItemQty(id, change)
@@ -27,6 +28,19 @@ const handleClearCart = ()=>{
   }
   const result = cartStore.clearCart();
   handleShowToast(result);
+}
+
+const handleCheckout = () =>{
+  if(cartStore.cart.length === 0){
+    const result = {
+      success:false,
+      message:"購物車不可以為空!"
+    }
+    handleShowToast(result);
+    return;
+  }
+
+  router.push("/checkout");
 }
 </script>
 
@@ -200,6 +214,7 @@ const handleClearCart = ()=>{
         <button
           type="button"
           class="checkout-button"
+          @click="handleCheckout"
         >
           前往結帳
         </button>

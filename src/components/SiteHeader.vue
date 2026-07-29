@@ -28,6 +28,13 @@ const cartStore = useCartStore()
         </RouterLink>
 
         <RouterLink
+          :to="{ name: 'product' }"
+          class="nav-link"
+        >
+          商品列表
+        </RouterLink>
+
+        <RouterLink
           class="nav-link"
           :to="{ name: 'cart' }"
           :aria-label="`購物車，共 ${cartStore.totalQuantity} 件商品`"
