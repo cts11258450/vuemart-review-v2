@@ -1,4 +1,6 @@
 <script setup>
+import { RouterLink } from "vue-router"
+
 import { formatPrice } from "../utils/formatPrice.js"
 
 defineProps({
@@ -7,6 +9,10 @@ defineProps({
     required: true,
   },
 })
+
+const emit = defineEmits([
+  "add-to-cart",
+])
 
 const getStockText = (stock) => {
   if (stock <= 0) {
@@ -20,32 +26,42 @@ const getStockText = (stock) => {
   return `庫存 ${stock} 件`
 }
 
-const emits = defineEmits(["add-to-cart"])
-
-const handleAddToCart = (product)=>{
-  if(product.stock <= 0){
-    return;
+const handleAddToCart = (product) => {
+  if (product.stock <= 0) {
+    return
   }
 
-  emits("add-to-cart",product)
+  emit("add-to-cart", product)
 }
 </script>
 
 <template>
   <li class="product-item">
-    <img
-      :src="product.image"
-      alt=""
-      class="product-icon"
-      aria-hidden="true"
+    <RouterLink
+      :to="{
+        name: 'product-detail',
+        params: {
+          id: product.id,
+        },
+      }"
+      class="product-image-link"
+      :aria-label="`查看 ${product.name} 的詳細資料`"
     >
+      <img
+        :src="product.image"
+        :alt="product.name"
+        class="product-icon"
+      />
+    </RouterLink>
 
     <div class="product-content">
       <p class="product-category">
         {{ product.category }}
       </p>
 
-      <h3>{{ product.name }}</h3>
+      <h3>
+        {{ product.name }}
+      </h3>
 
       <p class="product-description">
         {{ product.description }}
@@ -59,23 +75,47 @@ const handleAddToCart = (product)=>{
         <span
           class="product-stock"
           :class="{
-            'product-stock--sold-out': product.stock <= 0,
+            'product-stock--sold-out':
+              product.stock <= 0,
+
             'product-stock--low':
-              product.stock > 0 && product.stock <= 5,
-            'product-stock--available': product.stock > 5,
+              product.stock > 0 &&
+              product.stock <= 5,
+
+            'product-stock--available':
+              product.stock > 5,
           }"
         >
           {{ getStockText(product.stock) }}
         </span>
       </div>
 
-      <button 
-        :disabled="product.stock <= 0" 
-        @click="handleAddToCart(product)"
-        class="add-cart-button"
-      >
-        {{ product.stock <= 0? "已售完" : "購買" }}
-      </button>
+      <div class="product-actions">
+        <RouterLink
+          :to="{
+            name: 'product-detail',
+            params: {
+              id: product.id,
+            },
+          }"
+          class="detail-button"
+        >
+          查看詳情
+        </RouterLink>
+
+        <button
+          type="button"
+          class="add-cart-button"
+          :disabled="product.stock <= 0"
+          @click="handleAddToCart(product)"
+        >
+          {{
+            product.stock <= 0
+              ? "已售完"
+              : "加入購物車"
+          }}
+        </button>
+      </div>
     </div>
   </li>
 </template>
@@ -102,19 +142,38 @@ const handleAddToCart = (product)=>{
   transform: translateY(-4px);
 }
 
+/* 商品圖片連結 */
+.product-image-link {
+  display: block;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.product-image-link:focus-visible {
+  outline: 3px solid #5eead4;
+  outline-offset: 3px;
+}
+
 .product-icon {
-  display: grid;
+  display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
-  place-items: center;
-  font-size: 3.5rem;
+  object-fit: cover;
   background:
     linear-gradient(
       135deg,
       #ccfbf1 0%,
       #e0e7ff 100%
     );
-  border-radius: 16px;
+  transition:
+    transform 0.3s ease,
+    filter 0.3s ease;
+}
+
+/* 滑鼠移到圖片連結時，稍微放大圖片 */
+.product-image-link:hover .product-icon {
+  filter: saturate(1.08);
+  transform: scale(1.04);
 }
 
 .product-content {
@@ -133,8 +192,10 @@ const handleAddToCart = (product)=>{
 
 .product-content h3 {
   margin: 6px 0 0;
+  overflow-wrap: anywhere;
   color: #0f172a;
   font-size: 1.25rem;
+  line-height: 1.4;
 }
 
 .product-description {
@@ -156,6 +217,7 @@ const handleAddToCart = (product)=>{
   color: #0f766e;
   font-size: 1.15rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .product-stock {
@@ -168,6 +230,7 @@ const handleAddToCart = (product)=>{
   line-height: 1;
   border: 1px solid transparent;
   border-radius: 999px;
+  white-space: nowrap;
 }
 
 .product-stock--available {
@@ -188,21 +251,53 @@ const handleAddToCart = (product)=>{
   border-color: #fca5a5;
 }
 
+/* 查看詳情與加入購物車 */
+.product-actions {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.detail-button,
 .add-cart-button {
+  display: inline-flex;
   width: 100%;
-  margin-top:10px;
-  min-height: 44px;
-  padding: 12px 20px;
-  color: #ffffff;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 14px;
+  font: inherit;
   font-weight: 800;
-  background-color: #0f766e;
-  border: 1px solid #0f766e;
-  border-radius: 12px;
-  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  border-radius: 11px;
   transition:
+    color 0.2s ease,
     background-color 0.2s ease,
     border-color 0.2s ease,
     transform 0.2s ease;
+}
+
+.detail-button {
+  color: #0f172a;
+  background-color: #ffffff;
+  border: 1px solid #94a3b8;
+}
+
+.detail-button:hover {
+  color: #0f766e;
+  background-color: #f0fdfa;
+  border-color: #0f766e;
+  transform: translateY(-2px);
+}
+
+.add-cart-button {
+  color: #ffffff;
+  background-color: #0f766e;
+  border: 1px solid #0f766e;
+  cursor: pointer;
 }
 
 .add-cart-button:hover:not(:disabled) {
@@ -211,6 +306,7 @@ const handleAddToCart = (product)=>{
   transform: translateY(-2px);
 }
 
+.detail-button:focus-visible,
 .add-cart-button:focus-visible {
   outline: 3px solid #5eead4;
   outline-offset: 3px;
@@ -229,14 +325,14 @@ const handleAddToCart = (product)=>{
     padding: 20px;
   }
 
-  .product-icon {
-    font-size: 3rem;
-  }
-
   .product-meta {
     align-items: flex-start;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
+  }
+
+  .product-actions {
+    grid-template-columns: 1fr;
   }
 }
 </style>
