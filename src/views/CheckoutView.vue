@@ -5,11 +5,15 @@ import { RouterLink, useRouter } from "vue-router"
 import { useCartStore } from "../stores/cart.js"
 import { useOrderStore } from "../stores/order.js"
 import { formatPrice } from "../utils/formatPrice.js"
+
+import { useAuthStore } from "../stores/auth.js"
+
 import { handleShowToast } from "../utils/toastHelper.js"
 
 const cartStore = useCartStore()
 const orderStore = useOrderStore()
 const router = useRouter()
+const authStore = useAuthStore();
 
 // 表單資料
 const checkoutForm = reactive({
@@ -104,6 +108,7 @@ const handleSubmit = () => {
   }
 
   const orderData = {
+    userId: authStore.user.id,
     customer: {
       ...checkoutForm,
     },
