@@ -3,6 +3,7 @@ import {
   ref,
   computed,
   watch,
+  onMounted,
 } from "vue"
 
 import {
@@ -11,6 +12,9 @@ import {
 } from "vue-router"
 
 import ProductCard from "../components/ProductCard.vue"
+import LoadingState from "../components/LoadingState.vue"
+import ErrorState from "../components/ErrorState.vue"
+import EmptyState from "../components/EmptyState.vue"
 
 import { useProductStore } from "../stores/product.js"
 import { useCartStore } from "../stores/cart.js"
@@ -23,46 +27,39 @@ const cartStore = useCartStore()
 const route = useRoute()
 const router = useRouter()
 
-// 允許出現在網址中的 Query 名稱
+// Query 允許的欄位
 const allowedQueryKeys = [
   "searchKeyword",
   "selectCategory",
   "selectSort",
 ]
 
-// 允許使用的排序方式
+// 排序允許值
 const validSortTypes = [
   "default",
-  "price-asc",
-  "price-desc",
+  "dec",
+  "inc",
 ]
 
-// 從商品資料中取得不重複的分類
+// 商品分類
 const categoryArray = computed(() => {
-  const categories = productStore.products
-    .map((product) => {
-      return product.category
-    })
-    .filter((category) => {
-      return (
-        typeof category === "string" &&
-        category !== ""
-      )
-    })
-
-  return [...new Set(categories)]
+  return [
+    ...new Set(
+      productStore.products.map((product) => {
+        return product.category
+      }),
+    ),
+  ]
 })
 
-// 驗證搜尋關鍵字
+// 安全搜尋文字
 const getSafeSearchKeyword = (value) => {
-  if (typeof value === "string") {
-    return value.trim()
-  }
-
-  return ""
+  return typeof value === "string"
+    ? value
+    : ""
 }
 
-// 驗證商品分類
+// 安全商品分類
 const getSafeCategory = (value) => {
   if (
     typeof value === "string" &&
@@ -74,8 +71,8 @@ const getSafeCategory = (value) => {
   return "all"
 }
 
-// 驗證排序方式
-const getSafeSelectSort = (value) => {
+// 安全排序方式
+const getSafeSort = (value) => {
   if (
     typeof value === "string" &&
     validSortTypes.includes(value)
@@ -86,126 +83,106 @@ const getSafeSelectSort = (value) => {
   return "default"
 }
 
-// 從 route.query 取得安全的搜尋關鍵字
-const getSafeSearchKeywordFromQuery = () => {
-  return getSafeSearchKeyword(
-    route.query.searchKeyword,
-  )
-}
-
-// 從 route.query 取得安全的商品分類
-const getSafeSelectCategoryFromQuery = () => {
-  return getSafeCategory(
-    route.query.selectCategory,
-  )
-}
-
-// 從 route.query 取得安全的排序方式
-const getSafeSelectSortFromQuery = () => {
-  return getSafeSelectSort(
-    route.query.selectSort,
-  )
-}
-
-// 將網址 Query 轉成安全的畫面狀態
+// 將 Route Query 轉成安全 State
 const getSafeStateFromQuery = () => {
   return {
     searchKeyword:
-      getSafeSearchKeywordFromQuery(),
+      getSafeSearchKeyword(
+        route.query.searchKeyword,
+      ),
 
     selectCategory:
-      getSafeSelectCategoryFromQuery(),
+      getSafeCategory(
+        route.query.selectCategory,
+      ),
 
     selectSort:
-      getSafeSelectSortFromQuery(),
+      getSafeSort(
+        route.query.selectSort,
+      ),
   }
 }
 
-// 將畫面狀態轉成乾淨的 Query
-const getSafeQueryFromState = (
-  state = {
-    searchKeyword: searchKeyword.value,
-    selectCategory: selectCategory.value,
-    selectSort: selectSort.value,
-  },
-) => {
+// 將 State 轉成乾淨 Query
+const getQueryFromState = (state) => {
+  const query = {}
+
   const safeSearchKeyword =
     getSafeSearchKeyword(
       state.searchKeyword,
-    )
+    ).trim()
 
-  const safeSelectCategory =
+  const safeCategory =
     getSafeCategory(
       state.selectCategory,
     )
 
-  const safeSelectSort =
-    getSafeSelectSort(
+  const safeSort =
+    getSafeSort(
       state.selectSort,
     )
 
-  return {
-    searchKeyword:
-      safeSearchKeyword || undefined,
-
-    selectCategory:
-      safeSelectCategory === "all"
-        ? undefined
-        : safeSelectCategory,
-
-    selectSort:
-      safeSelectSort === "default"
-        ? undefined
-        : safeSelectSort,
+  if (safeSearchKeyword) {
+    query.searchKeyword =
+      safeSearchKeyword
   }
-}
 
-// 檢查 Query 是否含有額外欄位
-const hasOnlyAllowedQueryKeys = (query) => {
-  return Object.keys(query).every((key) => {
-    return allowedQueryKeys.includes(key)
-  })
+  if (safeCategory !== "all") {
+    query.selectCategory =
+      safeCategory
+  }
+
+  if (safeSort !== "default") {
+    query.selectSort =
+      safeSort
+  }
+
+  return query
 }
 
 // 比較兩份 Query 是否相同
-const isSameQuery = (queryA, queryB) => {
-  return (
-    hasOnlyAllowedQueryKeys(queryA) &&
+const isSameQuery = (
+  queryA,
+  queryB,
+) => {
+  const queryAKeys =
+    Object.keys(queryA)
 
-    (queryA.searchKeyword || undefined) ===
-      (queryB.searchKeyword || undefined) &&
+  const queryBKeys =
+    Object.keys(queryB)
 
-    (queryA.selectCategory || undefined) ===
-      (queryB.selectCategory || undefined) &&
+  if (
+    queryAKeys.length !==
+    queryBKeys.length
+  ) {
+    return false
+  }
 
-    (queryA.selectSort || undefined) ===
-      (queryB.selectSort || undefined)
-  )
+  return queryAKeys.every((key) => {
+    return (
+      allowedQueryKeys.includes(key) &&
+      queryA[key] === queryB[key]
+    )
+  })
 }
 
-// 初始畫面狀態
+// 畫面篩選狀態
 const searchKeyword = ref(
-  getSafeSearchKeywordFromQuery(),
+  getSafeSearchKeyword(
+    route.query.searchKeyword,
+  ),
 )
 
-const selectCategory = ref(
-  getSafeSelectCategoryFromQuery(),
-)
+// 商品載入前還無法驗證分類
+const selectCategory = ref("all")
 
 const selectSort = ref(
-  getSafeSelectSortFromQuery(),
+  getSafeSort(
+    route.query.selectSort,
+  ),
 )
 
-// 是否正在使用搜尋或篩選條件
-const hasActiveFilters = computed(() => {
-  return (
-    searchKeyword.value !== "" ||
-    selectCategory.value !== "all" ||
-    selectSort.value !== "default"
-  )
-})
-
-// 搜尋、分類與排序後的商品
+// 篩選與排序後的商品
 const showProducts = computed(() => {
   const normalizedKeyword =
     searchKeyword.value
@@ -214,42 +191,65 @@ const showProducts = computed(() => {
 
   const filteredProducts =
     productStore.products.filter((product) => {
-      const normalizedProductName =
-        String(product.name)
-          .toLowerCase()
+      const searchableText = [
+        product.name,
+        product.description,
+        product.category,
+      ]
+        .join(" ")
+        .toLowerCase()
 
-      const matchesKeyword =
-        normalizedProductName.includes(
+      const matchedKeyword =
+        !normalizedKeyword ||
+        searchableText.includes(
           normalizedKeyword,
         )
 
-      const matchesCategory =
+      const matchedCategory =
         selectCategory.value === "all" ||
-        selectCategory.value === product.category
+        product.category ===
+          selectCategory.value
 
       return (
-        matchesKeyword &&
-        matchesCategory
+        matchedKeyword &&
+        matchedCategory
       )
     })
 
+  // 複製後再排序，避免修改 Store 原陣列
   const sortedProducts = [
     ...filteredProducts,
   ]
 
-  if (selectSort.value === "price-asc") {
-    sortedProducts.sort((productA, productB) => {
-      return productA.price - productB.price
+  // 價格由低至高
+  if (selectSort.value === "dec") {
+    sortedProducts.sort((a, b) => {
+      return a.price - b.price
     })
   }
 
-  if (selectSort.value === "price-desc") {
-    sortedProducts.sort((productA, productB) => {
-      return productB.price - productA.price
+  // 價格由高至低
+  if (selectSort.value === "inc") {
+    sortedProducts.sort((a, b) => {
+      return b.price - a.price
     })
   }
 
   return sortedProducts
+})
+
+// EmptyState 標題
+const emptyStateTitle = computed(() => {
+  return productStore.productCount === 0
+    ? "目前沒有商品"
+    : "找不到符合條件的商品"
+})
+
+// EmptyState 說明
+const emptyStateMessage = computed(() => {
+  return productStore.productCount === 0
+    ? "目前尚未提供商品，請稍後再回來查看。"
+    : "請嘗試更換搜尋文字、商品分類或排序方式。"
 })
 
 // 重置搜尋條件
@@ -267,45 +267,79 @@ const handleAddToCart = (product) => {
   handleShowToast(result)
 }
 
-// 畫面 state 改變時，更新網址 Query
+// 重新載入商品
+const handleRetry = () => {
+  productStore.fetchProducts({
+    force: true,
+  })
+}
+
+// State 改變時同步至 Query
 watch(
   [
     searchKeyword,
     selectCategory,
     selectSort,
   ],
+
   () => {
-    const safeQuery =
-      getSafeQueryFromState()
+    // 商品尚未載入時，不驗證分類
+    if (!productStore.hasLoaded) {
+      return
+    }
+
+    const queryFromState =
+      getQueryFromState({
+        searchKeyword:
+          searchKeyword.value,
+
+        selectCategory:
+          selectCategory.value,
+
+        selectSort:
+          selectSort.value,
+      })
 
     if (
       isSameQuery(
         route.query,
-        safeQuery,
+        queryFromState,
       )
     ) {
       return
     }
 
     router.replace({
-      query: safeQuery,
+      query: queryFromState,
     })
   },
 )
 
-// 網址 Query 改變時，淨化網址並同步畫面 state
+// Query 或商品分類改變時同步至 State
 watch(
+  [
+    () => route.query,
+
+    // API 完成後，hasLoaded 會改成 true
+    () => productStore.hasLoaded,
+
+    // 商品分類內容改變時重新驗證 Query
+    () => categoryArray.value.join("|"),
+  ],
+
   () => {
-    return route.query
-  },
-  () => {
+    // 商品資料尚未成功取得
+    if (!productStore.hasLoaded) {
+      return
+    }
+
     const safeState =
       getSafeStateFromQuery()
 
     const safeQuery =
-      getSafeQueryFromState(safeState)
+      getQueryFromState(safeState)
 
-    // 網址包含不合法資料時，先修正網址
+    // Query 不乾淨時，先修正網址
     if (
       !isSameQuery(
         route.query,
@@ -319,7 +353,7 @@ watch(
       return
     }
 
-    // 網址已經安全，才同步畫面狀態
+    // Query 已安全，才同步至畫面
     searchKeyword.value =
       safeState.searchKeyword
 
@@ -329,10 +363,16 @@ watch(
     selectSort.value =
       safeState.selectSort
   },
+
   {
     immediate: true,
   },
 )
+
+// 元件第一次掛載後取得商品
+onMounted(() => {
+  productStore.fetchProducts()
+})
 </script>
 
 <template>
@@ -355,153 +395,130 @@ watch(
         </p>
 
         <p class="product-summary">
-          全部共有
+          目前共有
+
           <strong>
-            {{ productStore.productCount }}
+            {{
+              productStore.hasLoaded
+                ? productStore.productCount
+                : "..."
+            }}
           </strong>
+
           項商品
         </p>
       </header>
 
-      <section
-        class="filter-panel"
-        aria-labelledby="filter-title"
-      >
-        <header class="filter-heading">
-          <div>
-            <p class="filter-label">
-              PRODUCT FILTER
-            </p>
+      <LoadingState
+        v-if="productStore.isLoading"
+        title="商品載入中"
+        message="正在取得最新商品資料，請稍候。"
+      />
 
-            <h2 id="filter-title">
-              搜尋與篩選
-            </h2>
-          </div>
+      <ErrorState
+        v-else-if="
+          productStore.errorMessage
+        "
+        title="商品讀取失敗"
+        :message="
+          productStore.errorMessage
+        "
+        retry-text="重新載入商品"
+        @retry="handleRetry"
+      />
 
-          <p
-            class="filter-status"
-            aria-live="polite"
+      <template v-else>
+        <div class="search-bar">
+          <input
+            v-model="searchKeyword"
+            type="search"
+            aria-label="搜尋商品"
+            placeholder="搜尋商品名稱、分類或說明"
           >
-            顯示
-            <strong>{{ showProducts.length }}</strong>
-            /
-            {{ productStore.productCount }}
-            項
-          </p>
-        </header>
 
-        <div class="filter-grid">
-          <div class="filter-group search-group">
-            <label for="product-search">
-              搜尋商品
-            </label>
+          <select
+            v-model="selectCategory"
+            aria-label="選擇商品分類"
+          >
+            <option value="all">
+              全部分類
+            </option>
 
-            <input
-              id="product-search"
-              v-model.trim="searchKeyword"
-              type="search"
-              name="searchKeyword"
-              placeholder="輸入商品名稱"
-            />
-          </div>
-
-          <div class="filter-group">
-            <label for="product-category">
-              商品分類
-            </label>
-
-            <select
-              id="product-category"
-              v-model="selectCategory"
-              name="selectCategory"
+            <option
+              v-for="category in categoryArray"
+              :key="category"
+              :value="category"
             >
-              <option value="all">
-                全部分類
-              </option>
+              {{ category }}
+            </option>
+          </select>
 
-              <option
-                v-for="category in categoryArray"
-                :key="category"
-                :value="category"
-              >
-                {{ category }}
-              </option>
-            </select>
-          </div>
+          <select
+            v-model="selectSort"
+            aria-label="選擇排序方式"
+          >
+            <option value="default">
+              預設排序
+            </option>
 
-          <div class="filter-group">
-            <label for="product-sort">
-              商品排序
-            </label>
+            <option value="inc">
+              價格由高至低
+            </option>
 
-            <select
-              id="product-sort"
-              v-model="selectSort"
-              name="selectSort"
-            >
-              <option value="default">
-                預設排序
-              </option>
-
-              <option value="price-asc">
-                價格由低至高
-              </option>
-
-              <option value="price-desc">
-                價格由高至低
-              </option>
-            </select>
-          </div>
+            <option value="dec">
+              價格由低至高
+            </option>
+          </select>
 
           <button
             type="button"
-            class="reset-button"
-            :disabled="!hasActiveFilters"
             @click="resetSearch"
           >
-            重置條件
+            重置搜尋選項
           </button>
         </div>
-      </section>
 
-      <ul
-        v-if="showProducts.length > 0"
-        class="product-list"
-      >
-        <ProductCard
-          v-for="product in showProducts"
-          :key="product.id"
-          :product="product"
-          @add-to-cart="handleAddToCart"
-        />
-      </ul>
-
-      <section
-        v-else
-        class="empty-state"
-        aria-live="polite"
-      >
-        <span
-          class="empty-icon"
-          aria-hidden="true"
+        <EmptyState
+          v-if="
+            showProducts.length === 0
+          "
+          :title="emptyStateTitle"
+          :message="emptyStateMessage"
         >
-          ?
-        </span>
+          <template #icon>
+            🔍
+          </template>
 
-        <h2>找不到符合條件的商品</h2>
+          <template
+            v-if="
+              productStore.productCount > 0
+            "
+            #action
+          >
+            <button
+              type="button"
+              class="empty-reset-button"
+              @click="resetSearch"
+            >
+              清除搜尋條件
+            </button>
+          </template>
+        </EmptyState>
 
-        <p>
-          請嘗試其他關鍵字或重設篩選條件。
-        </p>
-
-        <button
-          type="button"
-          class="empty-reset-button"
-          @click="resetSearch"
+        <ul
+          v-else
+          class="product-list"
         >
-          清除所有條件
-        </button>
-      </section>
+          <ProductCard
+            v-for="product in showProducts"
+            :key="product.id"
+            :product="product"
+            @add-to-cart="
+              handleAddToCart
+            "
+          />
+        </ul>
+      </template>
     </section>
   </main>
 </template>
@@ -535,8 +552,7 @@ watch(
   text-align: center;
 }
 
-.section-label,
-.filter-label {
+.section-label {
   margin: 0 0 12px;
   color: #0f766e;
   font-size: 0.85rem;
@@ -547,7 +563,11 @@ watch(
 .section-heading h1 {
   margin: 0;
   color: #0f172a;
-  font-size: clamp(2.2rem, 6vw, 3.8rem);
+  font-size: clamp(
+    2.2rem,
+    6vw,
+    3.8rem
+  );
   line-height: 1.15;
   letter-spacing: -0.04em;
 }
@@ -577,76 +597,40 @@ watch(
   font-size: 1.1rem;
 }
 
-/* 搜尋及篩選面板 */
-.filter-panel {
-  margin-top: 44px;
-  padding: 28px;
-  background-color: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 20px;
-  box-shadow: 0 16px 40px rgb(15 23 42 / 9%);
-}
-
-.filter-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.filter-heading h2 {
-  margin: 0;
-  color: #0f172a;
-  font-size: 1.4rem;
-}
-
-.filter-status {
-  margin: 0;
-  padding: 8px 14px;
-  color: #334155;
-  font-size: 0.9rem;
-  background-color: #f1f5f9;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.filter-status strong {
-  color: #0f766e;
-  font-size: 1rem;
-}
-
-/* 四欄控制列 */
-.filter-grid {
+/* 搜尋、分類與排序工具列 */
+.search-bar {
   display: grid;
   grid-template-columns:
-    minmax(220px, 2fr)
+    minmax(240px, 2fr)
     minmax(150px, 1fr)
     minmax(170px, 1fr)
     auto;
-  align-items: end;
-  gap: 18px;
-  margin-top: 24px;
+  align-items: center;
+  gap: 16px;
+  margin-top: 40px;
+  padding: 24px;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 18px;
+  box-shadow:
+    0 12px 30px
+    rgb(15 23 42 / 8%);
 }
 
-.filter-group {
-  display: grid;
-  gap: 9px;
+/* 防止 Grid 子元素將版面撐開 */
+.search-bar > * {
   min-width: 0;
 }
 
-.filter-group label {
-  color: #0f172a;
-  font-size: 0.9rem;
-  font-weight: 800;
-}
-
-.filter-group input,
-.filter-group select {
+/* 搜尋框及下拉選單 */
+.search-bar input,
+.search-bar select {
   width: 100%;
   min-height: 46px;
-  padding: 11px 13px;
+  padding: 11px 14px;
   color: #0f172a;
   font: inherit;
+  font-weight: 600;
   background-color: #ffffff;
   border: 1px solid #94a3b8;
   border-radius: 10px;
@@ -656,32 +640,32 @@ watch(
     background-color 0.2s ease;
 }
 
-.filter-group input:hover,
-.filter-group select:hover {
-  border-color: #475569;
-}
-
-.filter-group input:focus,
-.filter-group select:focus {
-  border-color: #0f766e;
-  outline: none;
-  box-shadow:
-    0 0 0 4px rgb(20 184 166 / 20%);
-}
-
-.filter-group input::placeholder {
+.search-bar input::placeholder {
   color: #64748b;
 }
 
-.reset-button,
-.empty-reset-button {
-  display: inline-flex;
+.search-bar input:hover,
+.search-bar select:hover {
+  border-color: #475569;
+}
+
+.search-bar input:focus,
+.search-bar select:focus {
+  border-color: #0f766e;
+  outline: none;
+  box-shadow:
+    0 0 0 4px
+    rgb(20 184 166 / 20%);
+}
+
+/* 重置搜尋按鈕 */
+.search-bar > button {
   min-height: 46px;
-  align-items: center;
-  justify-content: center;
   padding: 11px 18px;
   color: #ffffff;
+  font: inherit;
   font-weight: 800;
+  white-space: nowrap;
   background-color: #0f766e;
   border: 1px solid #0f766e;
   border-radius: 10px;
@@ -689,84 +673,77 @@ watch(
   transition:
     background-color 0.2s ease,
     border-color 0.2s ease,
-    transform 0.2s ease,
-    opacity 0.2s ease;
+    transform 0.2s ease;
 }
 
-.reset-button:hover:not(:disabled),
-.empty-reset-button:hover {
+.search-bar > button:hover {
   background-color: #115e59;
   border-color: #115e59;
   transform: translateY(-2px);
 }
 
-.reset-button:focus-visible,
-.empty-reset-button:focus-visible {
+.search-bar > button:focus-visible {
   outline: 3px solid #5eead4;
   outline-offset: 3px;
 }
 
-.reset-button:disabled {
-  color: #64748b;
-  background-color: #e2e8f0;
-  border-color: #cbd5e1;
-  cursor: not-allowed;
-  opacity: 0.8;
-}
-
+/* 商品列表 */
 .product-list {
   display: grid;
   grid-template-columns:
-    repeat(auto-fit, minmax(260px, 1fr));
+    repeat(
+      auto-fit,
+      minmax(260px, 1fr)
+    );
   gap: 24px;
   margin: 40px 0 0;
   padding: 0;
   list-style: none;
 }
 
-/* 沒有搜尋結果 */
-.empty-state {
-  margin-top: 40px;
-  padding: 56px 24px;
-  text-align: center;
-  background-color: #ffffff;
-  border: 1px dashed #94a3b8;
-  border-radius: 20px;
-}
-
-.empty-icon {
-  display: grid;
-  width: 56px;
-  height: 56px;
-  margin: 0 auto;
-  place-items: center;
+/* EmptyState 插槽內的重置按鈕 */
+.empty-reset-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
   color: #ffffff;
-  font-size: 1.5rem;
+  font: inherit;
   font-weight: 900;
   background-color: #0f766e;
-  border-radius: 50%;
+  border: 1px solid #0f766e;
+  border-radius: 11px;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
 }
 
-.empty-state h2 {
-  margin: 22px 0 0;
-  color: #0f172a;
-  font-size: 1.5rem;
+.empty-reset-button:hover {
+  background-color: #115e59;
+  border-color: #115e59;
+  transform: translateY(-2px);
 }
 
-.empty-state p {
-  margin: 12px 0 24px;
-  color: #475569;
-  line-height: 1.7;
+.empty-reset-button:focus-visible {
+  outline: 3px solid #5eead4;
+  outline-offset: 3px;
 }
 
 /* 平板版 */
 @media (max-width: 900px) {
-  .filter-grid {
+  .search-bar {
     grid-template-columns:
-      repeat(2, minmax(0, 1fr));
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
   }
 
-  .reset-button {
+  .search-bar > input,
+  .search-bar > button {
     grid-column: 1 / -1;
   }
 }
@@ -777,27 +754,41 @@ watch(
     padding: 48px 16px 64px;
   }
 
-  .filter-panel {
-    padding: 22px;
-  }
-
-  .filter-heading {
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .filter-grid {
+  .search-bar {
     grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 32px;
+    padding: 20px;
   }
 
-  .reset-button {
-    grid-column: auto;
+  .search-bar > input,
+  .search-bar > select,
+  .search-bar > button {
+    grid-column: 1 / -1;
+  }
+
+  .search-bar > button {
     width: 100%;
   }
 
   .product-list {
     grid-template-columns: 1fr;
     margin-top: 32px;
+  }
+}
+
+/* 尊重使用者的減少動態效果設定 */
+@media (prefers-reduced-motion: reduce) {
+  .search-bar input,
+  .search-bar select,
+  .search-bar > button,
+  .empty-reset-button {
+    transition: none;
+  }
+
+  .search-bar > button:hover,
+  .empty-reset-button:hover {
+    transform: none;
   }
 }
 </style>
