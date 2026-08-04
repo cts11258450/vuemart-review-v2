@@ -6,6 +6,10 @@ import {
 
 import { defineStore } from "pinia"
 
+import {
+  createOrderApi,
+} from "../api/orderApi.js"
+
 export const useOrderStore = defineStore(
   "order",
   () => {
@@ -32,8 +36,23 @@ export const useOrderStore = defineStore(
       }
     }
 
+    //複製訂單物件，items的陣列裡面所有物件
+    const cloneItems = (items)=>{
+      return items.map((item)=>{
+        return {
+          ...item
+        }
+      })
+    }
+
+
     // state
-    const orders = ref(getSavedOrders())
+    const orders = ref(
+      getSavedOrders(),
+    )
+
+    const isCreatingOrder =
+      ref(false)
 
     // getter
     const orderCount = computed(() => {
@@ -41,52 +60,108 @@ export const useOrderStore = defineStore(
     })
 
     // action：建立新訂單
-    const createOrder = (orderData) => {
-      const newOrder = {
-        ...orderData,
-
-        id: String(Date.now()),
-
-        customer: {
-          ...orderData.customer,
-        },
-
-        items: orderData.items.map((item) => {
+    const createOrder =
+      async (orderData) => {
+        // 避免使用者連續送出
+        if (isCreatingOrder.value) {
           return {
-            ...item,
+            success: false,
+            message:
+              "訂單正在建立中，請稍候。",
           }
-        }),
+        }
 
-        status: "處理中",
+        isCreatingOrder.value = true
 
-        createdAt: new Date().toISOString(),
+        try {
+          // 準備送給 API 的訂單資料
+          const orderPayload = {
+            ...orderData,
+
+            customer: {
+              ...orderData.customer,
+            },
+
+            items: Array.isArray(
+              orderData.items,
+            )
+              ? cloneItems(orderData.items)
+              : [],
+
+            status: "處理中",
+
+            createdAt:
+              new Date().toISOString(),
+          }
+
+          // 等待 JSON Server 建立訂單
+          const createdOrder =
+            await createOrderApi(
+              orderPayload,
+            )
+
+          // API 成功後才更新 Pinia
+          orders.value.unshift(
+            createdOrder,
+          )
+
+          return {
+            success: true,
+
+            message:
+              `訂單 ${createdOrder.id} 已成功建立！`,
+
+            // 保留 newOrder 名稱，
+            // 讓 CheckoutView 原本的程式較容易銜接
+            newOrder: createdOrder,
+          }
+        } catch (error) {
+          console.error(
+            "訂單建立失敗：",
+            error,
+          )
+
+          const message =
+            error instanceof Error
+              ? error.message
+              : "訂單建立失敗，請稍後再試。"
+
+          return {
+            success: false,
+            message,
+            newOrder: null,
+          }
+        } finally {
+          isCreatingOrder.value =
+            false
+        }
       }
 
-      orders.value.unshift(newOrder)
-
-      return {
-        success: true,
-        message: `訂單 ${newOrder.id} 已成功建立！`,
-        newOrder,
-      } 
-    }
-
     // action：根據訂單 ID 尋找訂單
-    const getOrderById = (paramsId) => {
-      return orders.value.find((order) => {
-        return String(order.id) === String(paramsId)
-      })
+    const getOrderById = (
+      paramsId,
+    ) => {
+      return orders.value.find(
+        (order) => {
+          return (
+            String(order.id) ===
+            String(paramsId)
+          )
+        },
+      )
     }
 
     // 訂單變動後保存至 localStorage
     watch(
       orders,
+
       (newOrders) => {
         localStorage.setItem(
           "orders",
           JSON.stringify(newOrders),
         )
       },
+
       {
         deep: true,
       },
@@ -95,6 +170,7 @@ export const useOrderStore = defineStore(
     return {
       // state
       orders,
+      isCreatingOrder,
 
       // getter
       orderCount,

@@ -1,19 +1,23 @@
 <script setup>
 import { reactive } from "vue"
-import { RouterLink, useRouter } from "vue-router"
+
+import {
+  RouterLink,
+  useRouter,
+} from "vue-router"
 
 import { useCartStore } from "../stores/cart.js"
 import { useOrderStore } from "../stores/order.js"
-import { formatPrice } from "../utils/formatPrice.js"
-
 import { useAuthStore } from "../stores/auth.js"
 
+import { formatPrice } from "../utils/formatPrice.js"
 import { handleShowToast } from "../utils/toastHelper.js"
 
 const cartStore = useCartStore()
 const orderStore = useOrderStore()
+const authStore = useAuthStore()
+
 const router = useRouter()
-const authStore = useAuthStore();
 
 // 表單資料
 const checkoutForm = reactive({
@@ -44,10 +48,12 @@ const resetErrorMessage = () => {
 
 // 驗證 Email 格式
 const isValidEmail = (email) => {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    email,
+  )
 }
 
-// 驗證台灣手機號碼：09 開頭，共 10 位數字
+// 驗證台灣手機號碼
 const isValidPhone = (phone) => {
   return /^09\d{8}$/.test(phone)
 }
@@ -57,88 +63,149 @@ const validateForm = () => {
   resetErrorMessage()
 
   if (checkoutForm.name.length < 2) {
-    errorMessage.name = "收件人姓名至少需要 2 個字。"
+    errorMessage.name =
+      "收件人姓名至少需要 2 個字。"
   }
 
   if (!checkoutForm.email) {
-    errorMessage.email = "請輸入電子信箱。"
-  } else if (!isValidEmail(checkoutForm.email)) {
-    errorMessage.email = "電子信箱格式不正確。"
+    errorMessage.email =
+      "請輸入電子信箱。"
+  } else if (
+    !isValidEmail(checkoutForm.email)
+  ) {
+    errorMessage.email =
+      "電子信箱格式不正確。"
   }
 
   if (!checkoutForm.phone) {
-    errorMessage.phone = "請輸入聯絡電話。"
-  } else if (!isValidPhone(checkoutForm.phone)) {
-    errorMessage.phone = "請輸入以 09 開頭的 10 位手機號碼。"
+    errorMessage.phone =
+      "請輸入聯絡電話。"
+  } else if (
+    !isValidPhone(checkoutForm.phone)
+  ) {
+    errorMessage.phone =
+      "請輸入以 09 開頭的 10 位手機號碼。"
   }
 
-  if (checkoutForm.address.length < 6) {
-    errorMessage.address = "請輸入至少 6 個字的完整收件地址。"
+  if (
+    checkoutForm.address.length < 6
+  ) {
+    errorMessage.address =
+      "請輸入至少 6 個字的完整收件地址。"
   }
 
   if (checkoutForm.note.length > 200) {
-    errorMessage.note = "訂單備註不可超過 200 個字。"
+    errorMessage.note =
+      "訂單備註不可超過 200 個字。"
   }
 
-  return Object.values(errorMessage).every((message) => {
-    return message === ""
-  })
+  return Object
+    .values(errorMessage)
+    .every((message) => {
+      return message === ""
+    })
 }
 
 // 處理表單送出
-const handleSubmit = () => {
-  if (cartStore.cart.length === 0) {
+const handleSubmit = async () => {
+  // 避免重複執行送出流程
+  if (orderStore.isCreatingOrder) {
+    return
+  }
+
+  // 再次確認登入狀態
+  if (
+    !authStore.isLogin ||
+    !authStore.user
+  ) {
     handleShowToast({
       success: false,
-      message: "購物車是空的，無法送出訂單。",
+      message:
+        "登入狀態已失效，請重新登入。",
+    })
+
+    await router.push({
+      name: "login",
+
+      query: {
+        redirect: "/checkout",
+      },
     })
 
     return
   }
 
+  // 確認購物車不是空的
+  if (cartStore.cart.length === 0) {
+    handleShowToast({
+      success: false,
+      message:
+        "購物車是空的，無法送出訂單。",
+    })
+
+    return
+  }
+
+  // 驗證表單
   const isValid = validateForm()
 
   if (!isValid) {
     handleShowToast({
       success: false,
-      message: "請檢查結帳資料是否填寫正確。",
+      message:
+        "請檢查結帳資料是否填寫正確。",
     })
 
     return
   }
 
+  // 準備訂單資料
   const orderData = {
     userId: authStore.user.id,
+
     customer: {
       ...checkoutForm,
     },
 
-    items: cartStore.cart.map((item) => {
-      return {
-        ...item,
-      }
-    }),
-
-    totalQuantity: cartStore.totalQuantity,
-    totalPrice: cartStore.totalPrice,
-  }
-
-  const result = orderStore.createOrder(orderData);
-
-  handleShowToast(result);
-
-  if(result.success){
-    
-    // 訂單已經建立完成，現在才清空購物車
-    cartStore.clearCart()
-
-    router.push({
-        name:"order-success",
-        params:{
-            id:result.newOrder.id
+    items: cartStore.cart.map(
+      (item) => {
+        return {
+          ...item,
         }
-    });
+      },
+    ),
+
+    totalQuantity:
+      cartStore.totalQuantity,
+
+    totalPrice:
+      cartStore.totalPrice,
   }
+
+  // 等待訂單 API 完成
+  const result =
+    await orderStore.createOrder(
+      orderData,
+    )
+
+  handleShowToast(result)
+
+  // 建立失敗時保留購物車
+  if (!result.success) {
+    return
+  }
+
+  // 訂單建立成功後才清空購物車
+  cartStore.clearCart()
+
+  // 前往訂單完成頁
+  await router.push({
+    name: "order-success",
+
+    params: {
+      id: result.newOrder.id,
+    },
+  })
 }
 </script>
 
@@ -161,6 +228,9 @@ const handleSubmit = () => {
         <form
           class="checkout-form"
           novalidate
+          :aria-busy="
+            orderStore.isCreatingOrder
+          "
           @submit.prevent="handleSubmit"
         >
           <div class="form-heading">
@@ -186,21 +256,28 @@ const handleSubmit = () => {
 
               <input
                 id="name"
-                v-model.trim="checkoutForm.name"
+                v-model.trim="
+                  checkoutForm.name
+                "
                 type="text"
                 name="name"
                 autocomplete="name"
                 placeholder="例如：王小明"
                 :class="{
-                  'input-error': errorMessage.name,
+                  'input-error':
+                    errorMessage.name,
                 }"
-                :aria-invalid="Boolean(errorMessage.name)"
+                :aria-invalid="
+                  Boolean(
+                    errorMessage.name,
+                  )
+                "
                 :aria-describedby="
                   errorMessage.name
                     ? 'name-error'
                     : undefined
                 "
-              />
+              >
 
               <p
                 v-if="errorMessage.name"
@@ -220,21 +297,28 @@ const handleSubmit = () => {
 
               <input
                 id="phone"
-                v-model.trim="checkoutForm.phone"
+                v-model.trim="
+                  checkoutForm.phone
+                "
                 type="tel"
                 name="phone"
                 autocomplete="tel"
                 placeholder="例如：0912345678"
                 :class="{
-                  'input-error': errorMessage.phone,
+                  'input-error':
+                    errorMessage.phone,
                 }"
-                :aria-invalid="Boolean(errorMessage.phone)"
+                :aria-invalid="
+                  Boolean(
+                    errorMessage.phone,
+                  )
+                "
                 :aria-describedby="
                   errorMessage.phone
                     ? 'phone-error'
                     : undefined
                 "
-              />
+              >
 
               <p
                 v-if="errorMessage.phone"
@@ -247,28 +331,40 @@ const handleSubmit = () => {
             </div>
 
             <!-- 電子信箱 -->
-            <div class="form-group form-group-full">
+            <div
+              class="
+                form-group
+                form-group-full
+              "
+            >
               <label for="email">
                 電子信箱 *
               </label>
 
               <input
                 id="email"
-                v-model.trim="checkoutForm.email"
+                v-model.trim="
+                  checkoutForm.email
+                "
                 type="email"
                 name="email"
                 autocomplete="email"
                 placeholder="例如：example@mail.com"
                 :class="{
-                  'input-error': errorMessage.email,
+                  'input-error':
+                    errorMessage.email,
                 }"
-                :aria-invalid="Boolean(errorMessage.email)"
+                :aria-invalid="
+                  Boolean(
+                    errorMessage.email,
+                  )
+                "
                 :aria-describedby="
                   errorMessage.email
                     ? 'email-error'
                     : undefined
                 "
-              />
+              >
 
               <p
                 v-if="errorMessage.email"
@@ -281,31 +377,45 @@ const handleSubmit = () => {
             </div>
 
             <!-- 收件地址 -->
-            <div class="form-group form-group-full">
+            <div
+              class="
+                form-group
+                form-group-full
+              "
+            >
               <label for="address">
                 收件地址 *
               </label>
 
               <input
                 id="address"
-                v-model.trim="checkoutForm.address"
+                v-model.trim="
+                  checkoutForm.address
+                "
                 type="text"
                 name="address"
                 autocomplete="street-address"
                 placeholder="請輸入完整收件地址"
                 :class="{
-                  'input-error': errorMessage.address,
+                  'input-error':
+                    errorMessage.address,
                 }"
-                :aria-invalid="Boolean(errorMessage.address)"
+                :aria-invalid="
+                  Boolean(
+                    errorMessage.address,
+                  )
+                "
                 :aria-describedby="
                   errorMessage.address
                     ? 'address-error'
                     : undefined
                 "
-              />
+              >
 
               <p
-                v-if="errorMessage.address"
+                v-if="
+                  errorMessage.address
+                "
                 id="address-error"
                 class="error-message"
                 role="alert"
@@ -315,22 +425,34 @@ const handleSubmit = () => {
             </div>
 
             <!-- 訂單備註 -->
-            <div class="form-group form-group-full">
+            <div
+              class="
+                form-group
+                form-group-full
+              "
+            >
               <label for="note">
                 訂單備註
               </label>
 
               <textarea
                 id="note"
-                v-model.trim="checkoutForm.note"
+                v-model.trim="
+                  checkoutForm.note
+                "
                 name="note"
                 rows="5"
                 maxlength="201"
                 placeholder="例如：請於平日下午送達"
                 :class="{
-                  'input-error': errorMessage.note,
+                  'input-error':
+                    errorMessage.note,
                 }"
-                :aria-invalid="Boolean(errorMessage.note)"
+                :aria-invalid="
+                  Boolean(
+                    errorMessage.note,
+                  )
+                "
                 :aria-describedby="
                   errorMessage.note
                     ? 'note-hint note-error'
@@ -338,7 +460,9 @@ const handleSubmit = () => {
                 "
               ></textarea>
 
-              <div class="field-information">
+              <div
+                class="field-information"
+              >
                 <p
                   id="note-hint"
                   class="field-hint"
@@ -350,10 +474,17 @@ const handleSubmit = () => {
                   class="character-count"
                   :class="{
                     'character-count-error':
-                      checkoutForm.note.length > 200,
+                      checkoutForm
+                        .note
+                        .length > 200,
                   }"
                 >
-                  {{ checkoutForm.note.length }} / 200
+                  {{
+                    checkoutForm
+                      .note
+                      .length
+                  }}
+                  / 200
                 </span>
               </div>
 
@@ -379,8 +510,32 @@ const handleSubmit = () => {
             <button
               type="submit"
               class="submit-button"
+              :disabled="
+                orderStore
+                  .isCreatingOrder
+              "
+              :aria-busy="
+                orderStore
+                  .isCreatingOrder
+              "
             >
-              確認送出訂單
+              <span
+                v-if="
+                  orderStore
+                    .isCreatingOrder
+                "
+                class="submit-spinner"
+                aria-hidden="true"
+              ></span>
+
+              <span aria-live="polite">
+                {{
+                  orderStore
+                    .isCreatingOrder
+                    ? "訂單建立中..."
+                    : "確認送出訂單"
+                }}
+              </span>
             </button>
           </div>
         </form>
@@ -396,30 +551,46 @@ const handleSubmit = () => {
             </div>
 
             <span class="item-count">
-              {{ cartStore.totalQuantity }} 件
+              {{
+                cartStore.totalQuantity
+              }}
+              件
             </span>
           </div>
 
           <ul class="summary-list">
             <li
-              v-for="item in cartStore.cart"
+              v-for="
+                item in cartStore.cart
+              "
               :key="item.id"
               class="summary-item"
             >
-              <div class="item-information">
+              <div
+                class="item-information"
+              >
                 <strong>
                   {{ item.name }}
                 </strong>
 
                 <span>
-                  {{ formatPrice(item.price) }}
+                  {{
+                    formatPrice(
+                      item.price,
+                    )
+                  }}
                   ×
                   {{ item.qty }}
                 </span>
               </div>
 
               <strong class="item-price">
-                {{ formatPrice(item.price * item.qty) }}
+                {{
+                  formatPrice(
+                    item.price *
+                      item.qty,
+                  )
+                }}
               </strong>
             </li>
           </ul>
@@ -428,7 +599,11 @@ const handleSubmit = () => {
             <span>訂單總金額</span>
 
             <strong>
-              {{ formatPrice(cartStore.totalPrice) }}
+              {{
+                formatPrice(
+                  cartStore.totalPrice,
+                )
+              }}
             </strong>
           </div>
 
@@ -476,7 +651,11 @@ const handleSubmit = () => {
 .checkout-heading h1 {
   margin: 0;
   color: #0f172a;
-  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-size: clamp(
+    2rem,
+    6vw,
+    3.5rem
+  );
   line-height: 1.15;
   letter-spacing: -0.04em;
 }
@@ -504,7 +683,9 @@ const handleSubmit = () => {
   background-color: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 20px;
-  box-shadow: 0 18px 45px rgb(15 23 42 / 10%);
+  box-shadow:
+    0 18px 45px
+    rgb(15 23 42 / 10%);
 }
 
 .checkout-form {
@@ -536,7 +717,10 @@ const handleSubmit = () => {
 .form-grid {
   display: grid;
   grid-template-columns:
-    repeat(2, minmax(0, 1fr));
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
   gap: 24px;
   margin-top: 32px;
 }
@@ -591,7 +775,9 @@ const handleSubmit = () => {
 .form-group textarea:focus {
   border-color: #0f766e;
   outline: none;
-  box-shadow: 0 0 0 4px rgb(20 184 166 / 20%);
+  box-shadow:
+    0 0 0 4px
+    rgb(20 184 166 / 20%);
 }
 
 /* 驗證錯誤狀態 */
@@ -604,7 +790,9 @@ const handleSubmit = () => {
 .form-group input.input-error:focus,
 .form-group textarea.input-error:focus {
   border-color: #b91c1c;
-  box-shadow: 0 0 0 4px rgb(185 28 28 / 18%);
+  box-shadow:
+    0 0 0 4px
+    rgb(185 28 28 / 18%);
 }
 
 .error-message {
@@ -650,22 +838,36 @@ const handleSubmit = () => {
   border-top: 1px solid #e2e8f0;
 }
 
+/* 返回與送出按鈕的共用樣式 */
 .back-link,
 .submit-button {
   display: inline-flex;
   min-height: 46px;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   padding: 12px 20px;
+  font: inherit;
   font-weight: 800;
   text-decoration: none;
   border-radius: 10px;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .back-link {
   color: #0f172a;
   background-color: #ffffff;
   border: 1px solid #94a3b8;
+}
+
+.back-link:hover {
+  background-color: #f1f5f9;
+  border-color: #64748b;
 }
 
 .submit-button {
@@ -675,18 +877,47 @@ const handleSubmit = () => {
   cursor: pointer;
 }
 
-.back-link:hover {
-  background-color: #f1f5f9;
+.submit-button:hover:not(:disabled) {
+  background-color: #115e59;
+  border-color: #115e59;
+  transform: translateY(-2px);
 }
 
-.submit-button:hover {
-  background-color: #115e59;
+.submit-button:disabled {
+  color: #ffffff;
+  background-color: #64748b;
+  border-color: #64748b;
+  cursor: wait;
+  opacity: 0.85;
 }
 
 .back-link:focus-visible,
 .submit-button:focus-visible {
   outline: 3px solid #5eead4;
   outline-offset: 3px;
+}
+
+/* 送出中的旋轉圖示 */
+.submit-spinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border:
+    2px solid
+    rgb(255 255 255 / 40%);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation:
+    submit-spin
+    0.8s
+    linear
+    infinite;
+}
+
+@keyframes submit-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 右側訂單摘要 */
@@ -725,7 +956,8 @@ const handleSubmit = () => {
   align-items: start;
   gap: 16px;
   padding-bottom: 18px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom:
+    1px solid #e2e8f0;
 }
 
 .item-information {
@@ -821,6 +1053,22 @@ const handleSubmit = () => {
   .back-link,
   .submit-button {
     width: 100%;
+  }
+}
+
+/* 尊重使用者的減少動態效果設定 */
+@media (prefers-reduced-motion: reduce) {
+  .back-link,
+  .submit-button {
+    transition: none;
+  }
+
+  .submit-button:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .submit-spinner {
+    animation: none;
   }
 }
 </style>

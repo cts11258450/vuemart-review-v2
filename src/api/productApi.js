@@ -28,7 +28,6 @@ export const fetchProductsApi =
 
     // 開發模式：使用 JSON Server
     if (import.meta.env.DEV) {
-      console.log("1")
       const response = await fetch(
         `${API_BASE_URL}/products`,
       )
