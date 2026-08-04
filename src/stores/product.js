@@ -6,7 +6,7 @@ import {
 import { defineStore } from "pinia"
 
 import {
-  getProductsApi,
+  fetchProductsApi,
 } from "../api/productApi.js"
 
 export const useProductStore = defineStore(
@@ -84,7 +84,7 @@ export const useProductStore = defineStore(
 
         // 呼叫模擬 API
         const response =
-          await getProductsApi()
+          await fetchProductsApi()
 
         // 防禦性檢查 API 回傳格式
         if (!Array.isArray(response)) {
