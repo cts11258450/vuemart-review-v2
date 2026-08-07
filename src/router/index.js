@@ -15,6 +15,9 @@ import LoginView from "../views/LoginView.vue"
 import OrdersView from "../views/OrdersView.vue"
 import OrderDetailView from "../views/OrderDetailView.vue"
 import RegisterView from "../views/RegisterView.vue"
+import AdminProductsView from "../views/AdminProductsView.vue"
+import AdminProductCreateView from "../views/AdminProductCreateView.vue"
+import AdminProductEditView from "../views/AdminProductEditView.vue"
 import NotFoundView from "../views/NotFoundView.vue"
 
 const router = createRouter({
@@ -64,13 +67,52 @@ const router = createRouter({
       },
     },
     {
-        path:"/orders",
-        name:"orders",
-        component:OrdersView,
+      path: "/orders",
+      name: "orders",
+      component: OrdersView,
 
-        meta:{
-            requiresAuth: true,
-        }
+      meta: {
+        requiresAuth: true,
+      },
+    },
+    {
+      path: "/order-detail/:id",
+      name: "order-detail",
+      component: OrderDetailView,
+
+      meta: {
+        requiresAuth: true,
+      },
+    },
+    {
+      path: "/admin/products",
+      name: "admin-products",
+      component: AdminProductsView,
+
+      meta: {
+        requiresAuth: true,
+        requiresAdmin: true,
+      },
+    },
+    {
+      path: "/admin/products/new",
+      name: "admin-product-create",
+      component: AdminProductCreateView,
+
+      meta: {
+        requiresAuth: true,
+        requiresAdmin: true,
+      },
+    },
+    {
+      path:"/admin/products/:id/edit",
+      name:"admin-product-edit",
+      component:AdminProductEditView,
+
+      meta:{
+        requiresAuth: true,
+        requiresAdmin: true,
+      }
     },
     {
       path: "/login",
@@ -82,34 +124,26 @@ const router = createRouter({
       },
     },
     {
-      path:"/register",
-      name:"register",
-      component:RegisterView,
+      path: "/register",
+      name: "register",
+      component: RegisterView,
 
-      meta:{
+      meta: {
         guestOnly: true,
-      }
+      },
     },
     {
-        path:"/order-detail/:id",
-        name:"order-detail",
-        component:OrderDetailView,
-
-        meta:{
-            requiresAuth:true
-        }
+      path: "/:pathMatch(.*)*",
+      name: "not-found",
+      component: NotFoundView,
     },
-    {
-      path:"/:pathMatch(.*)*",
-      component:NotFoundView
-    }
   ],
 })
 
 router.beforeEach((to) => {
   const authStore = useAuthStore()
 
-  // 需要登入，但目前尚未登入
+  // 第一關：需要登入，但目前尚未登入
   if (
     to.meta.requiresAuth &&
     !authStore.isLogin
@@ -123,7 +157,17 @@ router.beforeEach((to) => {
     }
   }
 
-  // 已登入的會員不可再次進入登入頁
+  // 第二關：需要管理員權限，但目前不是管理員
+  if (
+    to.meta.requiresAdmin &&
+    !authStore.isAdmin
+  ) {
+    return {
+      name: "home",
+    }
+  }
+
+  // 第三關：已登入者不可進入登入及註冊頁面
   if (
     to.meta.guestOnly &&
     authStore.isLogin
@@ -133,7 +177,6 @@ router.beforeEach((to) => {
     }
   }
 
-  // 其他情況正常放行
   return true
 })
 
