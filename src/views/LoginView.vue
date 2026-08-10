@@ -266,11 +266,11 @@ watch(
 
         <div class="demo-account">
           <p class="demo-title">
-            練習用登入資料
+            管理員登入資料
           </p>
 
           <p>
-            電子信箱：可輸入任何有效的 Email
+            電子信箱：test@gmail.com
           </p>
 
           <p>

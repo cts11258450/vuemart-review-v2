@@ -345,7 +345,7 @@ export const updateProductApi =
 
     if (existingProduct) {
       throw new Error(
-        "已經有其他商品使用相同名稱。",
+        "該商品正在編輯。",
       )
     }
 
