@@ -24,7 +24,7 @@ const product = computed(() => {
   )
 })
 
-// 商品是否缺貨
+// 判斷商品是否缺貨
 const isOutOfStock = computed(() => {
   if (!product.value) {
     return true
@@ -33,7 +33,7 @@ const isOutOfStock = computed(() => {
   return product.value.stock <= 0
 })
 
-// 加入購物車
+// 將商品加入購物車
 const handleAddToCart = () => {
   if (!product.value) {
     return
@@ -60,17 +60,21 @@ const handleAddToCart = () => {
       </RouterLink>
 
       <div class="detail-layout">
+        <!-- 商品圖片區 -->
         <div class="product-visual">
-          <span
-            class="visual-label"
-            aria-hidden="true"
+          <img
+            :src="product.image"
+            :alt="product.name"
+            class="product-image"
           >
-            VM
-          </span>
 
-          <p>{{ product.category }}</p>
+          <!-- 圖片右下角的商品分類 -->
+          <p class="visual-category">
+            {{ product.category }}
+          </p>
         </div>
 
+        <!-- 商品資料區 -->
         <article class="product-information">
           <p class="product-category">
             {{ product.category }}
@@ -89,12 +93,18 @@ const handleAddToCart = () => {
           <dl class="product-meta">
             <div class="meta-item">
               <dt>商品編號</dt>
-              <dd>#{{ product.id }}</dd>
+
+              <dd>
+                #{{ product.id }}
+              </dd>
             </div>
 
             <div class="meta-item">
               <dt>商品分類</dt>
-              <dd>{{ product.category }}</dd>
+
+              <dd>
+                {{ product.category }}
+              </dd>
             </div>
 
             <div class="meta-item meta-item-full">
@@ -150,6 +160,7 @@ const handleAddToCart = () => {
       </div>
     </section>
 
+    <!-- 找不到商品 -->
     <section
       v-else
       class="not-found-card"
@@ -250,54 +261,62 @@ const handleAddToCart = () => {
   background-color: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 22px;
-  box-shadow: 0 20px 50px rgb(15 23 42 / 10%);
-}
-
-.product-visual {
-  display: grid;
-  min-height: 480px;
-  align-content: center;
-  justify-items: center;
-  gap: 18px;
-  padding: 40px;
-  overflow: hidden;
-  text-align: center;
-  background:
-    radial-gradient(
-      circle at center,
-      rgb(153 246 228 / 72%),
-      transparent 46%
-    ),
-    #f8fafc;
-}
-
-.visual-label {
-  display: grid;
-  width: 160px;
-  height: 160px;
-  place-items: center;
-  color: #ffffff;
-  font-size: 3rem;
-  font-weight: 900;
-  letter-spacing: -0.08em;
-  background:
-    linear-gradient(
-      135deg,
-      #0f766e,
-      #115e59
-    );
-  border-radius: 36px;
   box-shadow:
-    0 24px 48px rgb(15 118 110 / 28%);
-  transform: rotate(-4deg);
+    0 20px 50px rgb(15 23 42 / 10%);
 }
 
-.product-visual p {
+/* 商品圖片外層 */
+.product-visual {
+  position: relative;
+  min-height: 480px;
+  overflow: hidden;
+  background-color: #f8fafc;
+}
+
+/*
+  商品圖片使用絕對定位填滿外層。
+
+  object-fit: cover：
+  保持圖片原始比例，同時填滿整個圖片區域。
+  如果圖片比例不同，部分邊緣可能會被裁切。
+*/
+.product-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition:
+    transform 0.4s ease,
+    filter 0.4s ease;
+}
+
+/* 滑鼠移入圖片區時，稍微放大圖片 */
+.product-visual:hover .product-image {
+  filter: saturate(1.08);
+  transform: scale(1.04);
+}
+
+/* 圖片右下角的分類標籤 */
+.visual-category {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
   margin: 0;
-  color: #0f766e;
+  padding: 8px 14px;
+  color: #ffffff;
   font-size: 0.95rem;
   font-weight: 900;
   letter-spacing: 0.12em;
+  background-color:
+    rgb(15 23 42 / 82%);
+  border:
+    1px solid rgb(255 255 255 / 45%);
+  border-radius: 999px;
+  box-shadow:
+    0 8px 20px rgb(15 23 42 / 20%);
+  backdrop-filter: blur(8px);
 }
 
 .product-information {
@@ -455,7 +474,7 @@ const handleAddToCart = () => {
   line-height: 1.6;
 }
 
-/* 商品不存在 */
+/* 找不到商品 */
 .not-found-card {
   width: 100%;
   max-width: 640px;
@@ -465,7 +484,8 @@ const handleAddToCart = () => {
   background-color: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 22px;
-  box-shadow: 0 20px 50px rgb(15 23 42 / 10%);
+  box-shadow:
+    0 20px 50px rgb(15 23 42 / 10%);
 }
 
 .not-found-icon {
@@ -518,7 +538,7 @@ const handleAddToCart = () => {
   background-color: #115e59;
 }
 
-/* 平板與手機版 */
+/* 平板版 */
 @media (max-width: 800px) {
   .detail-layout {
     grid-template-columns: 1fr;
@@ -529,6 +549,7 @@ const handleAddToCart = () => {
   }
 }
 
+/* 手機版 */
 @media (max-width: 600px) {
   .detail-page {
     padding: 40px 16px 64px;
@@ -540,13 +561,13 @@ const handleAddToCart = () => {
 
   .product-visual {
     min-height: 280px;
-    padding: 32px 24px;
   }
 
-  .visual-label {
-    width: 130px;
-    height: 130px;
-    font-size: 2.5rem;
+  .visual-category {
+    right: 14px;
+    bottom: 14px;
+    padding: 7px 12px;
+    font-size: 0.82rem;
   }
 
   .product-meta {
