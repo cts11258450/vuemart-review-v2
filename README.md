@@ -48,6 +48,13 @@ VueMart Review V2 是一個使用 Vue 3 建立的電商前端練習專案。
 
 ---
 
+## 線上展示
+
+- [開啟 VueMart Review V2](https://cts11258450.github.io/vuemart-review-v2/)
+- [查看 GitHub Repository](https://github.com/cts11258450/vuemart-review-v2)
+
+> 本專案使用 GitHub Pages 部署。正式展示環境使用前端模擬資料與 localStorage；本機開發環境則可搭配 JSON Server 測試商品、訂單及會員 API。
+
 ## 專案功能
 
 ### 商品系統
