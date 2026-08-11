@@ -48,6 +48,39 @@ VueMart Review V2 是一個使用 Vue 3 建立的電商前端練習專案。
 
 ---
 
+## Lighthouse 品質檢查
+
+本專案部署至 GitHub Pages 後，使用 Chrome Lighthouse 的 Mobile Navigation 模式進行正式環境檢測。
+
+| 檢測項目           |  分數 |
+| -------------- | --: |
+| Performance    | 100 |
+| Accessibility  | 100 |
+| Best Practices | 100 |
+| SEO            | 100 |
+
+### 效能最佳化成果
+
+為減少首頁首次載入時不必要的 JavaScript 與 CSS，本專案將 Vue Router 的頁面元件由靜態匯入改為動態 `import()`，實作路由懶載入及程式碼分割。
+
+Vite 建置後會將首頁、商品、會員、訂單及後台頁面分割為不同 chunk；使用者第一次進入對應路由時，才下載該頁面需要的程式。
+
+本次 Lighthouse 測試結果如下：
+
+| 效能指標                     |   優化前 |   優化後 |
+| ------------------------ | ----: | ----: |
+| Performance              |    99 |   100 |
+| First Contentful Paint   | 1.7 秒 | 1.1 秒 |
+| Largest Contentful Paint | 1.7 秒 | 1.3 秒 |
+| Total Blocking Time      |  0 毫秒 |  0 毫秒 |
+| Cumulative Layout Shift  |     0 |     0 |
+| Speed Index              | 2.1 秒 | 1.1 秒 |
+
+> Lighthouse 分數可能受到測試裝置、網路狀態及瀏覽器環境影響；以上數據為本次正式部署環境的測試結果。
+
+![VueMart Lighthouse Mobile 檢測結果](./docs/screenshots/lighthouse-mobile.png)
+
+
 ## 線上展示
 
 - [開啟 VueMart Review V2](https://cts11258450.github.io/vuemart-review-v2/)
